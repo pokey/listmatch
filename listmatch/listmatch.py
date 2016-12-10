@@ -10,91 +10,127 @@ class State:
         self.is_end = False
 
 
+class StateSet(object):
+    def __init__(self, states):
+        self.states = set()
+        for state in states:
+            self.add_state(state)
+
+    def add_state(self, state):
+        if state in self.states:
+            return
+        self.states.add(state)
+        for eps in state.epsilon:
+            self.add_state(eps)
+
+    def __iter__(self):
+        return iter(self.states)
+
+
+def maybe_convert_to_nfa(nfa):
+    if isinstance(nfa, NFA):
+        return nfa
+    if callable(nfa):
+        return atom(nfa)
+    raise TypeError("Expected NFA but received {}".format(type(nfa)))
+
+
 class NFA:
     def __init__(self, start, end):
-        # start and end states
         self.start = start
         self.end = end
         end.is_end = True
 
-    def addstate(self, state, state_set):
-        """
-        add state + recursively add epsilon transitions
-        """
-        if state in state_set:
-            return
-        state_set.add(state)
-        for eps in state.epsilon:
-            self.addstate(eps, state_set)
+    def match(self, target):
+        states = StateSet([self.start])
 
-    def match(self, l):
-        current_states = set()
-        self.addstate(self.start, current_states)
+        for elem in target:
+            states = StateSet(
+                state.next_state
+                for state in states
+                if state.matcher(elem)
+            )
 
-        for e in l:
-            next_states = set()
-            for state in current_states:
-                if state.matcher(e):
-                    trans_state = state.next_state
-                    self.addstate(trans_state, next_states)
-
-            current_states = next_states
-
-        for s in current_states:
+        for s in states:
             if s.is_end:
                 return True
         return False
 
+    def __add__(self, other):
+        return concat(self, maybe_convert_to_nfa(other))
 
-def atom(matcher):
-    s0 = State()
-    s1 = State()
-    s0.matcher = matcher
-    s0.next_state = s1
-    return NFA(s0, s1)
+    def __radd__(self, other):
+        if callable(other):
+            return concat(maybe_convert_to_nfa(other), self)
 
+    def __or__(self, other):
+        return options(self, maybe_convert_to_nfa(other))
 
-def concat(*args):
-    if len(args) == 0:
-        s0 = State()
-        return NFA(s0, s0)
-    if len(args) == 1:
-        return args[0]
-    for n1, n2 in pairwise(args):
-        n1.end.is_end = False
-        n1.end.epsilon.append(n2.start)
-    return NFA(args[0].start, args[-1].end)
+    def __ror__(self, other):
+        if callable(other):
+            return options(maybe_convert_to_nfa(other), self)
 
 
-def options(*args):
-    s0 = State()
-    s0.epsilon = [nfa.start for nfa in args]
-    s3 = State()
-    for nfa in args:
-        nfa.end.epsilon.append(s3)
-        nfa.end.is_end = False
-    return NFA(s0, s3)
+class atom(NFA):
+    def __init__(self, matcher):
+        start, end = State(), State()
+        start.matcher = matcher
+        start.next_state = end
+        super().__init__(start, end)
 
 
-def _rep(n1, at_least_once):
-    s0 = State()
-    s1 = State()
-    s0.epsilon = [n1.start]
+class concat(NFA):
+    def __init__(self, *args):
+        nfas = [maybe_convert_to_nfa(arg) for arg in args]
+        if len(nfas) == 0:
+            state = State()
+            super().__init__(state, state)
+        elif len(nfas) == 1:
+            super().__init__(nfas[0].start, nfas[0].end)
+        else:
+            for nfa1, nfa2 in pairwise(nfas):
+                nfa1.end.is_end = False
+                nfa1.end.epsilon.append(nfa2.start)
+            super().__init__(nfas[0].start, nfas[-1].end)
+
+
+class options(NFA):
+    def __init__(self, *args):
+        nfas = [maybe_convert_to_nfa(arg) for arg in args]
+        start, end = State(), State()
+        start.epsilon = [nfa.start for nfa in nfas]
+        for nfa in nfas:
+            nfa.end.epsilon.append(end)
+            nfa.end.is_end = False
+        super().__init__(start, end)
+
+
+def _rep(nfa, at_least_once):
+    start, end = State(), State()
+    start.epsilon = [nfa.start]
     if not at_least_once:
-        s0.epsilon.append(s1)
-    n1.end.epsilon.extend([s1, n1.start])
-    n1.end.is_end = False
-    return NFA(s0, s1)
+        start.epsilon.append(end)
+    nfa.end.epsilon.extend([end, nfa.start])
+    nfa.end.is_end = False
+    return (start, end)
 
 
-def zero_or_more(n1):
-    return _rep(n1, at_least_once=False)
+class zero_or_more(NFA):
+    def __init__(self, arg):
+        nfa = maybe_convert_to_nfa(arg)
+        start, end = _rep(nfa, at_least_once=False)
+        super().__init__(start, end)
 
 
-def one_or_more(n1):
-    return _rep(n1, at_least_once=False)
+class one_or_more(NFA):
+    def __init__(self, arg):
+        nfa = maybe_convert_to_nfa(arg)
+        start, end = _rep(nfa, at_least_once=True)
+        super().__init__(start, end)
 
 
-def maybe(n1):
-    n1.start.epsilon.append(n1.end)
-    return n1
+class maybe(NFA):
+    def __init__(self, arg):
+        nfa = maybe_convert_to_nfa(arg)
+        nfa.start.epsilon.append(nfa.end)
+        super().__init__(nfa.start, nfa.end)

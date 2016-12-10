@@ -25,7 +25,9 @@ def is_c(c):
 def is_d(c):
     return c == 'd'
 
-nfa = concat(
+# The following NFAs are equivalent
+nfa1 = zero_or_more(is_a) + one_or_more(is_b | (is_c + maybe(is_d)))
+nfa2 = concat(
     zero_or_more(atom(is_a)),
     one_or_more(
         options(
@@ -35,5 +37,8 @@ nfa = concat(
     )
 )
 
-matched = nfa.match(input)
-print(matched)  # True
+if nfa1.match(input):
+    print("First matched!")
+
+if nfa2.match(input):
+    print("Second matched!")
