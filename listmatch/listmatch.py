@@ -70,7 +70,12 @@ class NFA:
 
 
 class atom(NFA):
-    def __init__(self, matcher):
+    def __init__(self, arg):
+        if not callable(arg):
+            def matcher(x):
+                return x == arg
+        else:
+            matcher = arg
         start, end = State(), State()
         start.matcher = matcher
         start.next_state = end
