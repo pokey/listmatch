@@ -27,12 +27,12 @@ class StateSet(object):
         return iter(self.states)
 
 
-def maybe_convert_to_nfa(nfa):
-    if isinstance(nfa, NFA):
-        return nfa
-    if callable(nfa):
-        return atom(nfa)
-    raise TypeError("Expected NFA but received {}".format(type(nfa)))
+def maybe_convert_to_nfa(arg):
+    if isinstance(arg, NFA):
+        return arg
+    if callable(arg):
+        return atom(arg)
+    return atom(lambda x: x == arg)
 
 
 class NFA:
@@ -60,15 +60,13 @@ class NFA:
         return concat(self, maybe_convert_to_nfa(other))
 
     def __radd__(self, other):
-        if callable(other):
-            return concat(maybe_convert_to_nfa(other), self)
+        return concat(maybe_convert_to_nfa(other), self)
 
     def __or__(self, other):
         return options(self, maybe_convert_to_nfa(other))
 
     def __ror__(self, other):
-        if callable(other):
-            return options(maybe_convert_to_nfa(other), self)
+        return options(maybe_convert_to_nfa(other), self)
 
 
 class atom(NFA):
