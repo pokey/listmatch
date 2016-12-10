@@ -49,8 +49,8 @@ def is_even(x):
 
 class TestListmatch(unittest.TestCase):
     def test_basic(self):
-        assert_that(atom(is_a).match('a'))
-        assert_that(is_not(atom(is_a).match('b')))
+        assert_that(atom(is_a), matches(['a']))
+        assert_that(atom(is_a), is_not(matches(['b'])))
 
         assert_that('a' + atom('b'), matches('ab'))
         assert_that('a' + atom('b'), is_not(matches('a')))
