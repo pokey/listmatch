@@ -56,6 +56,9 @@ class NFA:
                 return True
         return False
 
+    def __repr__(self):
+        return self.repr
+
     def __add__(self, other):
         return concat(self, maybe_convert_to_nfa(other))
 
@@ -79,6 +82,7 @@ class atom(NFA):
         start, end = State(), State()
         start.matcher = matcher
         start.next_state = end
+        self.repr = 'atom({})'.format(repr(arg))
         super().__init__(start, end)
 
 
@@ -95,6 +99,12 @@ class concat(NFA):
                 nfa1.end.is_end = False
                 nfa1.end.epsilon.append(nfa2.start)
             super().__init__(nfas[0].start, nfas[-1].end)
+        self.repr = 'concat({})'.format(
+            ', '.join(
+                repr(arg)
+                for arg in args
+            )
+        )
 
 
 class options(NFA):
@@ -106,6 +116,12 @@ class options(NFA):
             nfa.end.epsilon.append(end)
             nfa.end.is_end = False
         super().__init__(start, end)
+        self.repr = 'options({})'.format(
+            ', '.join(
+                repr(arg)
+                for arg in args
+            )
+        )
 
 
 def _rep(nfa, at_least_once):
@@ -123,6 +139,7 @@ class zero_or_more(NFA):
         nfa = maybe_convert_to_nfa(arg)
         start, end = _rep(nfa, at_least_once=False)
         super().__init__(start, end)
+        self.repr = 'zero_or_more({})'.format(repr(arg))
 
 
 class one_or_more(NFA):
@@ -130,6 +147,7 @@ class one_or_more(NFA):
         nfa = maybe_convert_to_nfa(arg)
         start, end = _rep(nfa, at_least_once=True)
         super().__init__(start, end)
+        self.repr = 'one_or_more({})'.format(repr(arg))
 
 
 class maybe(NFA):
@@ -137,3 +155,4 @@ class maybe(NFA):
         nfa = maybe_convert_to_nfa(arg)
         nfa.start.epsilon.append(nfa.end)
         super().__init__(nfa.start, nfa.end)
+        self.repr = 'maybe({})'.format(repr(arg))

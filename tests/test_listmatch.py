@@ -58,8 +58,13 @@ class TestListmatch(unittest.TestCase):
         assert_that(concat(), matches([]))
         assert_that(concat(), is_not(matches('a')))
 
+        assert_that(concat(atom('a')), matches(['a']))
+
         assert_that(options(), is_not(matches([])))
         assert_that(options(), is_not(matches('a')))
+
+        assert_that(options('a', 'b'), matches(['a']))
+        assert_that(options('a', 'b'), is_not(matches(['c'])))
 
         assert_that(zero_or_more(is_even), matches([]))
         assert_that(zero_or_more(is_even), matches([0, 2, 4]))
