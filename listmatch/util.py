@@ -8,3 +8,9 @@ def pairwise(iterable):
     a, b = tee(iterable)
     next(b, None)
     return zip(a, b)
+
+
+def make_fluent_func(cls):
+    def func(*args, **kwargs):
+        return cls(*args, **kwargs)
+    return func

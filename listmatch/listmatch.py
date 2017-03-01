@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from listmatch.util import pairwise
+from listmatch.util import pairwise, make_fluent_func
 
 
 class State:
@@ -72,7 +72,7 @@ class NFA:
         return options(maybe_convert_to_nfa(other), self)
 
 
-class atom(NFA):
+class Atom(NFA):
     def __init__(self, arg):
         if not callable(arg):
             def matcher(x):
@@ -86,7 +86,7 @@ class atom(NFA):
         super().__init__(start, end)
 
 
-class concat(NFA):
+class Concat(NFA):
     def __init__(self, *args):
         nfas = [maybe_convert_to_nfa(arg) for arg in args]
         if len(nfas) == 0:
@@ -107,7 +107,7 @@ class concat(NFA):
         )
 
 
-class options(NFA):
+class Options(NFA):
     def __init__(self, *args):
         nfas = [maybe_convert_to_nfa(arg) for arg in args]
         start, end = State(), State()
@@ -134,7 +134,7 @@ def _rep(nfa, at_least_once):
     return (start, end)
 
 
-class zero_or_more(NFA):
+class ZeroOrMore(NFA):
     def __init__(self, arg):
         nfa = maybe_convert_to_nfa(arg)
         start, end = _rep(nfa, at_least_once=False)
@@ -142,7 +142,7 @@ class zero_or_more(NFA):
         self.repr = 'zero_or_more({})'.format(repr(arg))
 
 
-class one_or_more(NFA):
+class OneOrMore(NFA):
     def __init__(self, arg):
         nfa = maybe_convert_to_nfa(arg)
         start, end = _rep(nfa, at_least_once=True)
@@ -150,9 +150,17 @@ class one_or_more(NFA):
         self.repr = 'one_or_more({})'.format(repr(arg))
 
 
-class maybe(NFA):
+class Maybe(NFA):
     def __init__(self, arg):
         nfa = maybe_convert_to_nfa(arg)
         nfa.start.epsilon.append(nfa.end)
         super().__init__(nfa.start, nfa.end)
         self.repr = 'maybe({})'.format(repr(arg))
+
+
+atom = make_fluent_func(Atom)
+concat = make_fluent_func(Concat)
+maybe = make_fluent_func(Maybe)
+one_or_more = make_fluent_func(OneOrMore)
+options = make_fluent_func(Options)
+zero_or_more = make_fluent_func(ZeroOrMore)
