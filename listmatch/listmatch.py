@@ -1,13 +1,49 @@
 # -*- coding: utf-8 -*-
-from listmatch.util import pairwise, make_fluent_func
+from itertools import chain
+
+from listmatch.util import (
+    MatchSummary,
+    explain_none,
+    make_fluent_func,
+    pairwise
+)
 
 
-class State:
+class Possibilities(object):
+    def __init__(self, *possibilities):
+        self.possibilities = possibilities
+
+    def __iter__(self):
+        return iter(self.possibilities)
+
+    def __repr__(self):
+        return 'Possibilities({})'.format(repr(self.possibilities))
+
+
+class State(object):
     def __init__(self):
         self.epsilon = []  # epsilon-closure
-        self.matcher = lambda x: False
+        self.matcher = explain_none(lambda x: False)
         self.next_state = None
         self.is_end = False
+
+
+class StateMap(object):
+    def __init__(self, states):
+        self.states = {}
+        for state, info_path in states:
+            self.add_state(state, info_path)
+
+    def add_state(self, state, info_path):
+        if state in self.states:
+            self.states[state] += info_path
+            return
+        self.states[state] = info_path
+        for eps in state.epsilon:
+            self.add_state(eps, info_path)
+
+    def __iter__(self):
+        return iter(self.states.items())
 
 
 class StateSet(object):
@@ -30,9 +66,7 @@ class StateSet(object):
 def maybe_convert_to_nfa(arg):
     if isinstance(arg, NFA):
         return arg
-    if callable(arg):
-        return atom(arg)
-    return atom(lambda x: x == arg)
+    return atom(arg)
 
 
 class NFA:
@@ -41,20 +75,49 @@ class NFA:
         self.end = end
         end.is_end = True
 
-    def match(self, target):
+    def match(self, target, explain):
+        return (
+            self.match_explain(target)
+            if explain else self.match_no_explain(target)
+        )
+
+    def match_explain(self, target):
+        states = StateMap([(self.start, [[]])])
+
+        for elem in target:
+            next_state_list = []
+            for state, info_path in states:
+                match_info = state.matcher(elem, explain=True)
+                if match_info.is_match:
+                    next_state_list.append((state.next_state, [
+                        info_path + [match_info.explanation]
+                        for info_path in info_path
+                    ]))
+            states = StateMap(next_state_list)
+
+        matched = any(True for s, info_path in states if s.is_end)
+        final_paths = chain.from_iterable(
+            info_path
+            for s, info_path in states
+            if s.is_end
+        )
+
+        return MatchSummary(
+            matched,
+            Possibilities(*final_paths)
+        )
+
+    def match_no_explain(self, target):
         states = StateSet([self.start])
 
         for elem in target:
             states = StateSet(
                 state.next_state
                 for state in states
-                if state.matcher(elem)
+                if state.matcher(elem, explain=False).is_match
             )
 
-        for s in states:
-            if s.is_end:
-                return True
-        return False
+        return MatchSummary(any(True for s in states if s.is_end))
 
     def __repr__(self):
         return self.repr
@@ -75,8 +138,9 @@ class NFA:
 class Atom(NFA):
     def __init__(self, arg):
         if not callable(arg):
+            @explain_none
             def matcher(x):
-                return x == arg
+                return (x == arg)
         else:
             matcher = arg
         start, end = State(), State()
